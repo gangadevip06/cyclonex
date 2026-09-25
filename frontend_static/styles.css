@@ -1,0 +1,392 @@
+/* CYCLONEX - Modern Meteorological Command Center Stylesheet */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+    --bg-base: #070d19;
+    --bg-card: rgba(15, 23, 42, 0.75);
+    --bg-card-hover: rgba(30, 41, 59, 0.85);
+    --border-subtle: rgba(51, 65, 85, 0.6);
+    --border-glow: rgba(56, 189, 248, 0.35);
+    --cyan-primary: #38bdf8;
+    --emerald-accent: #10b981;
+    --amber-warning: #f59e0b;
+    --rose-danger: #f43f5e;
+    --purple-intense: #a855f7;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg-base);
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(14, 165, 233, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.1) 0px, transparent 50%);
+    color: #f1f5f9;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+.mono-font {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Glassmorphism Panel */
+.glass-panel {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.glass-panel:hover {
+    border-color: var(--border-glow);
+}
+
+/* Layout Containment Optimization */
+.contain-layout {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 400px;
+}
+
+@supports not (content-visibility: auto) {
+    .contain-layout {
+        contain: layout style paint;
+    }
+}
+
+/* Glowing Status Badges */
+.pulse-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    position: relative;
+}
+
+.pulse-indicator.active {
+    background-color: #ef4444;
+    box-shadow: 0 0 10px #ef4444;
+}
+
+.pulse-indicator.active::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    border-radius: 50%;
+    border: 2px solid #ef4444;
+    animation: ripple 1.8s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+@keyframes ripple {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(3.2); opacity: 0; }
+}
+
+/* Radar Scan Line Animation */
+.radar-overlay {
+    position: relative;
+    overflow: hidden;
+}
+
+.radar-overlay::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.8), transparent);
+    animation: radar-sweep 4s linear infinite;
+    z-index: 10;
+    pointer-events: none;
+}
+
+@keyframes radar-sweep {
+    0% { top: 0%; opacity: 0.8; }
+    50% { opacity: 1; }
+    100% { top: 100%; opacity: 0.2; }
+}
+
+/* Metric Card */
+.metric-card {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(51, 65, 85, 0.5);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+}
+
+.metric-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    width: 100%;
+    background: linear-gradient(90deg, var(--cyan-primary), transparent);
+}
+
+/* Leaflet GIS Map Styling */
+#cyclone-gis-map {
+    width: 100%;
+    height: 520px;
+    border-radius: 10px;
+    background: #0b1329;
+    z-index: 1;
+}
+
+.leaflet-container {
+    font-family: 'Inter', sans-serif !important;
+}
+
+.leaflet-popup-content-wrapper {
+    background: #0f172a !important;
+    color: #f8fafc !important;
+    border: 1px solid #38bdf8 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8) !important;
+}
+
+.leaflet-popup-tip {
+    background: #0f172a !important;
+}
+
+/* Satellite & Grad-CAM Image Container */
+.satellite-view-box {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-height: 480px;
+    background: #020617;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.satellite-view-box img.base-sat {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.satellite-view-box img.gradcam-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    filter: contrast(115%) saturate(125%);
+    transition: opacity 0.08s ease-out, filter 0.2s ease-out;
+}
+
+/* Dynamic AI Hotspot Target Reticle */
+.gradcam-hotspot-reticle {
+    position: absolute;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 25;
+    transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1), top 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s ease-out;
+}
+
+.hotspot-core-dot {
+    width: 10px;
+    height: 10px;
+    background: #fcfdbf;
+    border: 2px solid #fb8861;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #fcfdbf, 0 0 20px #fb8861, 0 0 35px rgba(251, 136, 97, 0.8);
+    z-index: 4;
+    animation: core-flash 1.2s ease-in-out infinite alternate;
+}
+
+.hotspot-pulse-ring {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border: 2px solid #fb8861;
+    border-radius: 50%;
+    animation: hotspot-pulse 1.6s infinite cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.hotspot-pulse-ring-outer {
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    border: 1.5px dashed rgba(252, 253, 191, 0.85);
+    border-radius: 50%;
+    animation: hotspot-spin 10s linear infinite;
+}
+
+.hotspot-crosshair-h {
+    position: absolute;
+    width: 40px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(252, 253, 191, 0.9), transparent);
+}
+
+.hotspot-crosshair-v {
+    position: absolute;
+    height: 40px;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(252, 253, 191, 0.9), transparent);
+}
+
+.hotspot-hud-badge {
+    position: absolute;
+    left: calc(100% + 6px);
+    top: -14px;
+    background: rgba(15, 23, 42, 0.94);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(251, 136, 97, 0.6);
+    border-radius: 6px;
+    padding: 3px 8px;
+    white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 12px rgba(251, 136, 97, 0.3);
+}
+
+@keyframes hotspot-pulse {
+    0% {
+        transform: scale(0.6);
+        opacity: 0.95;
+        box-shadow: 0 0 4px #fb8861;
+    }
+    100% {
+        transform: scale(1.65);
+        opacity: 0;
+        box-shadow: 0 0 18px #fb8861;
+    }
+}
+
+@keyframes hotspot-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes core-flash {
+    from {
+        transform: scale(0.9);
+        box-shadow: 0 0 8px #fcfdbf, 0 0 14px #fb8861;
+    }
+    to {
+        transform: scale(1.25);
+        box-shadow: 0 0 14px #fcfdbf, 0 0 28px #fb8861, 0 0 42px rgba(251, 136, 97, 0.9);
+    }
+}
+
+/* Custom Range Slider */
+input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: #1e293b;
+    border-radius: 3px;
+    outline: none;
+}
+
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #38bdf8;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
+    transition: transform 0.1s;
+}
+
+input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.6);
+}
+
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}
+
+/* Leaflet Dark Glassmorphism Styling */
+.leaflet-container {
+    background: #070d19 !important;
+}
+
+.leaflet-control-layers {
+    background: rgba(15, 23, 42, 0.88) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(51, 65, 85, 0.8) !important;
+    border-radius: 8px !important;
+    color: #e2e8f0 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    padding: 8px 12px !important;
+}
+
+.leaflet-control-layers label {
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.leaflet-control-layers-toggle {
+    filter: invert(1) brightness(1.2);
+}
+
+.leaflet-bar a {
+    background-color: rgba(15, 23, 42, 0.85) !important;
+    border-color: rgba(51, 65, 85, 0.8) !important;
+    color: #38bdf8 !important;
+    backdrop-filter: blur(6px);
+}
+
+.leaflet-bar a:hover {
+    background-color: rgba(30, 41, 59, 0.95) !important;
+    color: #7dd3fc !important;
+}

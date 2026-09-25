@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYCLONEX - AI Tropical Cyclone Early Forecasting & Warning System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#070d19',
+                            800: '#0f172a',
+                            700: '#1e293b',
+                            600: '#334155',
+                        },
+                        accent: {
+                            cyan: '#38bdf8',
+                            blue: '#3b82f6',
+                            emerald: '#10b981',
+                            amber: '#f59e0b',
+                            rose: '#f43f5e',
+                            purple: '#a855f7'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Leaflet CSS & JS for GIS Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Chart.js for Forecast & SHAP Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Cache Control -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/styles.css?v=2.0.5">
+</head>
+<body class="bg-dark-900 text-slate-100 flex flex-col min-h-screen">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800 bg-dark-800/90 backdrop-blur sticky top-0 z-50 px-4 py-3">
+        <div class="max-w-[1700px] mx-auto flex flex-wrap items-center justify-between gap-4">
+            
+            <!-- Brand & Hackathon Info -->
+            <div class="flex items-center space-x-3">
+                <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+                    <i data-lucide="cloud-lightning" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl font-bold tracking-wider text-white">CYCLONEX</span>
+                        <span class="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30">SIH 2026 | PS ID: SIH26070</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Physics-Informed Multimodal AI for Early Cyclone Forecasting (INSAT-3D + ERA5)</p>
+                </div>
+            </div>
+
+            <!-- Central Operations Ticker -->
+            <div class="hidden lg:flex items-center space-x-3 bg-dark-900/80 px-3.5 py-1.5 rounded-lg border border-slate-700/60 text-xs">
+                <span class="pulse-indicator active"></span>
+                <span class="text-slate-400">Status:</span>
+                <span id="header-status-text" class="font-medium text-amber-400">Precursor Detected (Southeast Bay of Bengal)</span>
+                <span class="text-slate-600">|</span>
+                <span class="text-slate-400">Updated:</span>
+                <span id="header-updated-time" class="text-slate-300 mono-font">Every 3 Hours</span>
+            </div>
+
+            <!-- Action Controls -->
+            <div class="flex items-center space-x-3">
+                <!-- Scenario Selector -->
+                <div class="flex items-center space-x-1.5 bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs">
+                    <i data-lucide="layers" class="w-3.5 h-3.5 text-slate-400"></i>
+                    <label for="scenario-select" class="text-slate-400 font-medium">Scenario:</label>
+                    <select id="scenario-select" class="bg-transparent text-sky-300 font-semibold focus:outline-none cursor-pointer">
+                        <option value="precursor_2026" class="bg-dark-800 text-slate-200">Precursor Cyclogenesis (2026 Active)</option>
+                        <option value="remal_2024" class="bg-dark-800 text-slate-200">Cyclone Remal (2024 - VSCS)</option>
+                        <option value="biparjoy_2023" class="bg-dark-800 text-slate-200">Cyclone Biparjoy (2023 - ESCS)</option>
+                        <option value="michaung_2023" class="bg-dark-800 text-slate-200">Cyclone Michaung (2023 - SCS)</option>
+                    </select>
+                </div>
+
+                <!-- Interactive What-If Simulator Button -->
+                <button id="toggle-sim-btn" class="flex items-center space-x-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/50 text-indigo-200 px-3 py-1.5 rounded-lg text-xs font-medium transition shadow-sm">
+                    <i data-lucide="sliders" class="w-3.5 h-3.5 text-indigo-400"></i>
+                    <span>What-If Simulator</span>
+                </button>
+
+                <!-- Live Real-Time Data Feed Button -->
+                <button id="nav-fetch-realtime-btn" class="flex items-center space-x-1.5 bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/50 text-emerald-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span>Live Real-Time Sync</span>
+                </button>
+
+                <!-- IMD Bulletin Modal Button -->
+                <button id="view-bulletin-btn" class="flex items-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow-md shadow-sky-600/20">
+                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                    <span>IMD Bulletin</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Body -->
+    <main class="max-w-[1700px] mx-auto w-full p-4 flex-1 flex flex-col gap-4">
+
+        <!-- Top Telemetry & Key Environmental Indicators Row (Matching Slide 2) -->
+        <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            
+            <!-- Metric 1: Sea Surface Temp -->
+            <div class="metric-card">
+                <div class="flex items-center justify-between text-xs text-slate-400">
+                    <span>SEA SURFACE TEMP</span>
+                    <i data-lucide="thermometer" class="w-4 h-4 text-rose-400"></i>
+                </div>
+                <div class="mt-2 flex items-baseline justify-between">
+                    <span id="metric-sst" class="text-2xl font-bold mono-font text-white">30.2°C</span>
+                    <span id="metric-sst-badge" class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">>26.5°C Favorable</span>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">ERA5 High-Res Marine Analysis</div>
+            </div>
+
+            <!-- Metric 2: CAPE -->
+            <div class="metric-card">
+                <div class="flex items-center justify-between text-xs text-slate-400">
+                    <span>CAPE (CONVECTIVE ENERGY)</span>
+                    <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+                </div>
+                <div class="mt-2 flex items-baseline justify-between">
+                    <span id="metric-cape" class="text-2xl font-bold mono-font text-white">1285 J/kg</span>
+                    <span id="metric-cape-badge" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">High Convection</span>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">Thermodynamic Atmospheric Lift</div>
+            </div>
+
+            <!-- Metric 3: Low-Level Vorticity -->
+            <div class="metric-card">
+                <div class="flex items-center justify-between text-xs text-slate-400">
+                    <span>LOW-LEVEL VORTICITY</span>
+                    <i data-lucide="rotate-cw" class="w-4 h-4 text-sky-400"></i>
+                </div>
+                <div class="mt-2 flex items-baseline justify-between">
+                    <span id="metric-vorticity" class="text-2xl font-bold mono-font text-white">2.6 ×10⁻⁵ s⁻¹</span>
+                    <span id="metric-vort-badge" class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">Strong Spin</span>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">850 hPa Relative Vorticity</div>
+            </div>
+
+            <!-- Metric 4: Vertical Wind Shear -->
+            <div class="metric-card">
+                <div class="flex items-center justify-between text-xs text-slate-400">
+                    <span>VERTICAL WIND SHEAR</span>
+                    <i data-lucide="wind" class="w-4 h-4 text-teal-400"></i>
+                </div>
+                <div class="mt-2 flex items-baseline justify-between">
+                    <span id="metric-shear" class="text-2xl font-bold mono-font text-white">12 kt</span>
+                    <span id="metric-shear-badge" class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Low (<15 kt)</span>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">200-850 hPa Differential Vector</div>
+            </div>
+
+            <!-- Metric 5: Central Pressure & Deficit -->
+            <div class="metric-card">
+                <div class="flex items-center justify-between text-xs text-slate-400">
+                    <span>CENTRAL PRESSURE</span>
+                    <i data-lucide="gauge" class="w-4 h-4 text-purple-400"></i>
+                </div>
+                <div class="mt-2 flex items-baseline justify-between">
+                    <span id="metric-pressure" class="text-2xl font-bold mono-font text-white">1004 hPa</span>
+                    <span id="metric-deficit" class="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">-8 hPa Drop</span>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">Mean Sea Level Pressure (MSLP)</div>
+            </div>
+
+            <!-- Metric 6: 120-Hour Genesis Probability -->
+            <div class="metric-card bg-gradient-to-br from-red-950/40 to-dark-800 border-red-500/40">
+                <div class="flex items-center justify-between text-xs text-red-300 font-semibold">
+                    <span>GENESIS PROBABILITY (120H)</span>
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-red-400"></i>
+                </div>
+                <div class="mt-2 flex items-baseline justify-between">
+                    <span id="metric-genesis-prob" class="text-2xl font-extrabold mono-font text-red-400">78%</span>
+                    <span id="metric-confidence" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30">86% Conf.</span>
+                </div>
+                <div class="text-[11px] text-red-300/80 mt-1">Precursor Cyclogenesis Trigger</div>
+            </div>
+        </section>
+
+        <!-- "What-If" Physics Simulator Drawer (Collapsible) -->
+        <section id="simulator-drawer" class="glass-panel p-4 hidden border-indigo-500/40 bg-dark-800/95 transition-all">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-700">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="cpu" class="w-5 h-5 text-indigo-400"></i>
+                    <h3 class="text-sm font-semibold text-white">Interactive Physics & Multimodal AI Simulator ("What-If" Analysis)</h3>
+                    <span class="text-xs text-indigo-300 hidden md:inline">Test how atmospheric variables dynamically shift genesis probability, tracks, and Grad-CAM activations!</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button id="fetch-realtime-btn" class="bg-emerald-600/25 hover:bg-emerald-600/40 border border-emerald-500/50 text-emerald-300 font-semibold py-1 px-2.5 rounded-lg text-xs flex items-center space-x-1.5 transition shadow-sm">
+                        <i data-lucide="radio" class="w-3.5 h-3.5 text-emerald-400"></i>
+                        <span>Fetch Live Real-Time Atmosphere</span>
+                    </button>
+                    <button id="close-sim-btn" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+
+            <!-- Real-Time Data Sync Banner -->
+            <div id="realtime-status-banner" class="hidden text-xs mb-3 px-3 py-2 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 flex items-center justify-between transition-all">
+                <div class="flex items-center space-x-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span id="realtime-status-text" class="font-medium">Live Atmospheric & Marine Ground Truth Synced</span>
+                </div>
+                <span id="realtime-time-text" class="font-mono text-[10px] text-emerald-300">Just now</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-300">Sea Surface Temp (SST)</span>
+                        <span id="sim-val-sst" class="mono-font text-sky-400 font-semibold">30.2 °C</span>
+                    </div>
+                    <input type="range" id="sim-input-sst" min="24.0" max="32.5" step="0.1" value="30.2">
+                    <span class="text-[10px] text-slate-500">Threshold: >26.5°C needed</span>
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-300">Vertical Wind Shear</span>
+                        <span id="sim-val-shear" class="mono-font text-teal-400 font-semibold">12 kt</span>
+                    </div>
+                    <input type="range" id="sim-input-shear" min="5" max="38" step="1" value="12">
+                    <span class="text-[10px] text-slate-500">>20 kt suppresses cyclogenesis</span>
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-300">Low-Level Vorticity</span>
+                        <span id="sim-val-vort" class="mono-font text-amber-400 font-semibold">2.6 ×10⁻⁵ s⁻¹</span>
+                    </div>
+                    <input type="range" id="sim-input-vort" min="0.5" max="4.5" step="0.1" value="2.6">
+                    <span class="text-[10px] text-slate-500">Higher spin accelerates development</span>
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-300">CAPE (Convective Energy)</span>
+                        <span id="sim-val-cape" class="mono-font text-rose-400 font-semibold">1285 J/kg</span>
+                    </div>
+                    <input type="range" id="sim-input-cape" min="300" max="2500" step="25" value="1285">
+                    <span class="text-[10px] text-slate-500">>1000 J/kg drives storm updrafts</span>
+                </div>
+
+                <div class="flex items-end">
+                    <button id="run-sim-btn" class="w-full bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/30 transition">
+                        <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                        <span>Run AI Inference</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Middle Grid: GIS Operations Map + Satellite Grad-CAM Explainability -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            
+            <!-- Left 7 Cols: Interactive GIS Operations Map -->
+            <div class="lg:col-span-7 glass-panel p-4 flex flex-col contain-layout">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="map" class="w-5 h-5 text-sky-400"></i>
+                        <h2 class="text-sm font-semibold text-white tracking-wide">North Indian Ocean GIS Operations Center</h2>
+                        <span id="basin-badge" class="text-[10px] px-2 py-0.5 rounded bg-sky-900/60 text-sky-300 border border-sky-600/40">Bay of Bengal</span>
+                    </div>
+
+                    <!-- Map Layer Controls & Landfall ETA -->
+                    <div class="flex items-center space-x-2">
+                        <button id="play-track-btn" class="flex items-center space-x-1 px-2.5 py-1 rounded bg-sky-950/80 hover:bg-sky-900 border border-sky-600/60 text-sky-200 text-xs font-medium transition shadow-sm">
+                            <i data-lucide="play" class="w-3.5 h-3.5 text-sky-400"></i>
+                            <span id="play-track-text">Animate Track</span>
+                        </button>
+                        <div id="landfall-badge" class="text-[11px] px-2 py-1 rounded bg-rose-950/80 text-rose-200 border border-rose-600/60 flex items-center space-x-1.5">
+                            <i data-lucide="target" class="w-3.5 h-3.5 text-rose-400"></i>
+                            <span>Landfall: <strong id="landfall-text">Balasore / Digha (~80-96 hrs)</strong></span>
+                        </div>
+                        <button id="recenter-map-btn" title="Reset View" class="p-1 rounded bg-dark-700 hover:bg-dark-600 text-slate-300">
+                            <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Leaflet Map Container with Radar Effect -->
+                <div class="radar-overlay rounded-lg overflow-hidden border border-slate-700 flex-1 relative">
+                    <div id="cyclone-gis-map"></div>
+
+                    <!-- Floating Map Legend Overlay -->
+                    <div class="absolute bottom-3 left-3 z-[400] bg-dark-900/90 backdrop-blur-md p-2.5 rounded-lg border border-slate-700/80 text-[11px] max-w-xs shadow-xl pointer-events-auto">
+                        <div class="font-semibold text-slate-200 mb-1.5 flex items-center space-x-1">
+                            <i data-lucide="info" class="w-3 h-3 text-sky-400"></i>
+                            <span>IMD Intensity Stages</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
+                            <div class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#38bdf8]"></span><span class="text-slate-300">Depression (D)</span></div>
+                            <div class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#eab308]"></span><span class="text-slate-300">Cyclonic Storm (CS)</span></div>
+                            <div class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#f97316]"></span><span class="text-slate-300">Severe CS (SCS)</span></div>
+                            <div class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#ef4444]"></span><span class="text-slate-300">Very Severe (VSCS)</span></div>
+                            <div class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#dc2626]"></span><span class="text-slate-300">Extremely Severe</span></div>
+                            <div class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#9333ea]"></span><span class="text-slate-300">Super Cyclone</span></div>
+                        </div>
+                        <div class="mt-2 pt-1 border-t border-slate-700/60 flex items-center justify-between text-[10px] text-slate-400">
+                            <span class="flex items-center space-x-1"><span class="w-3 h-0.5 bg-sky-400 border-dashed border-sky-300"></span><span>120h Track</span></span>
+                            <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-sm bg-sky-500/20 border border-sky-400/40"></span><span>70% Cone</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right 5 Cols: INSAT-3D Satellite Imagery & Grad-CAM Explainable AI -->
+            <div class="lg:col-span-5 glass-panel p-4 flex flex-col justify-between contain-layout">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="satellite" class="w-5 h-5 text-indigo-400"></i>
+                            <h2 class="text-sm font-semibold text-white tracking-wide">INSAT-3D Satellite & Grad-CAM</h2>
+                        </div>
+                        <span class="text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-indigo-900/60 text-indigo-300 border border-indigo-500/30">Explainable AI (XAI)</span>
+                    </div>
+
+                    <!-- Multispectral Satellite Channel Selector -->
+                    <div class="flex items-center space-x-1.5 mb-2.5 bg-dark-900/80 p-1 rounded-lg border border-slate-700/60 text-xs">
+                        <span class="text-[10px] text-slate-400 px-1 font-semibold">CHANNEL:</span>
+                        <button id="btn-chan-tir1" class="sat-chan-btn px-2.5 py-0.5 rounded bg-sky-600 text-white font-medium text-[11px] transition">TIR-1 (10.8 µm)</button>
+                        <button id="btn-chan-wv" class="sat-chan-btn px-2.5 py-0.5 rounded bg-dark-700 hover:bg-dark-600 text-slate-300 text-[11px] transition">Water Vapor (6.8 µm)</button>
+                        <button id="btn-chan-vis" class="sat-chan-btn px-2.5 py-0.5 rounded bg-dark-700 hover:bg-dark-600 text-slate-300 text-[11px] transition">Visible (0.65 µm)</button>
+                    </div>
+
+                    <!-- Satellite Box with Opacity Layer Blending -->
+                    <div class="satellite-view-box mb-3" id="sat-view-box">
+                        <img id="insat-img" src="" alt="INSAT-3D Thermal IR Satellite Image" class="base-sat">
+                        <img id="gradcam-img" src="" alt="PyTorch Grad-CAM Attention Heatmap" class="gradcam-layer" style="opacity: 0.75; mix-blend-mode: screen;">
+
+                        <!-- Dynamic AI Hotspot Target Reticle Marker -->
+                        <div id="gradcam-hotspot-marker" class="gradcam-hotspot-reticle" style="left: 50%; top: 50%;">
+                            <div class="hotspot-pulse-ring"></div>
+                            <div class="hotspot-pulse-ring-outer"></div>
+                            <div class="hotspot-crosshair-h"></div>
+                            <div class="hotspot-crosshair-v"></div>
+                            <div class="hotspot-core-dot"></div>
+                            <div class="hotspot-hud-badge">
+                                <div class="flex items-center space-x-1 text-[9px] font-bold text-amber-300">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
+                                    <span>AI CONVECTIVE HOTSPOT</span>
+                                </div>
+                                <div id="hotspot-badge-text" class="text-[10px] font-mono text-white">98% Eyewall Core</div>
+                            </div>
+                        </div>
+
+                        <!-- Target Visual Crosshair and Stage Label -->
+                        <div class="absolute bottom-2 left-2 bg-dark-900/85 backdrop-blur px-2.5 py-1 rounded text-[11px] border border-slate-700 flex items-center space-x-2 z-10">
+                            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                            <span id="sat-stage-label" class="font-medium text-slate-200">Stage: Cyclonic Inflow</span>
+                        </div>
+
+                        <!-- Colormap Indicator Badge -->
+                        <div class="absolute top-2 right-2 bg-dark-900/85 backdrop-blur px-2 py-0.5 rounded text-[10px] border border-amber-500/40 flex items-center space-x-1.5 z-10">
+                            <span class="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_#fbbf24]"></span>
+                            <span class="font-semibold text-amber-300">Colormap: Magma</span>
+                        </div>
+                    </div>
+
+                    <!-- Grad-CAM Opacity Slider & Blending Controls -->
+                    <div class="bg-dark-900/80 p-3 rounded-lg border border-slate-700/70 mb-3 space-y-2.5">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-slate-300 font-medium flex items-center space-x-1.5">
+                                <i data-lucide="eye" class="w-3.5 h-3.5 text-sky-400"></i>
+                                <span>Grad-CAM Attention Opacity:</span>
+                            </span>
+                            <span id="opacity-val-label" class="mono-font text-sky-400 font-bold">75%</span>
+                        </div>
+                        <input type="range" id="gradcam-opacity-slider" min="0" max="100" value="75">
+                        <div class="flex justify-between text-[10px] text-slate-500">
+                            <span>0% (Raw Satellite)</span>
+                            <span>50% (Blended)</span>
+                            <span>100% (Sharpened Magma Heatmap)</span>
+                        </div>
+
+                        <!-- Blending Mode & Hotspot Controls -->
+                        <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div class="flex items-center space-x-1">
+                                <span class="text-[10px] text-slate-400 font-semibold uppercase">Blend Mode:</span>
+                                <button id="blend-screen-btn" class="blend-mode-btn px-2 py-0.5 rounded bg-sky-600 text-white font-semibold text-[11px] transition shadow">Screen</button>
+                                <button id="blend-multiply-btn" class="blend-mode-btn px-2 py-0.5 rounded bg-dark-700 hover:bg-dark-600 text-slate-300 text-[11px] transition">Multiply</button>
+                                <button id="blend-normal-btn" class="blend-mode-btn px-2 py-0.5 rounded bg-dark-700 hover:bg-dark-600 text-slate-300 text-[11px] transition">Normal</button>
+                            </div>
+                            <label class="flex items-center space-x-1.5 cursor-pointer text-[11px] text-slate-300 hover:text-white transition">
+                                <input type="checkbox" id="toggle-hotspot-reticle" checked class="rounded bg-dark-700 border-slate-600 text-sky-500 focus:ring-0">
+                                <span>Hotspot Reticle</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Explanation Description Card -->
+                <div class="text-xs text-slate-400 bg-dark-900/60 p-2.5 rounded-lg border border-slate-800">
+                    <p class="leading-relaxed"><strong class="text-sky-300">PyTorch CNN Focus:</strong> The attention heatmap isolates deep convective feeder bands (-70°C cold tops) and cyclonic spiraling vorticity in the southeast Bay, predicting cyclogenesis 120h in advance.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Lower Grid: 120-Hour Genesis & Intensity Curve + SHAP Feature Attribution (Matching Slide 2 & 3) -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            
+            <!-- 120-Hour Genesis Probability & Intensity Chart (7 Cols) -->
+            <div class="lg:col-span-7 glass-panel p-4 flex flex-col contain-layout">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="trending-up" class="w-5 h-5 text-emerald-400"></i>
+                        <h2 class="text-sm font-semibold text-white tracking-wide">120-Hour AI Trajectory & Intensity Prediction</h2>
+                    </div>
+                    <span class="text-[10px] text-slate-400 mono-font">LSTM + Physics Integration (24h - 120h)</span>
+                </div>
+                <div class="flex-1 min-h-[220px]">
+                    <canvas id="forecast-curve-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- SHAP Feature Importance Panel (5 Cols - Matching Slide 2) -->
+            <div class="lg:col-span-5 glass-panel p-4 flex flex-col contain-layout">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5 text-amber-400"></i>
+                        <h2 class="text-sm font-semibold text-white tracking-wide">SHAP Feature Attribution (Why AI Predicted Genesis)</h2>
+                    </div>
+                    <span class="text-[10px] text-slate-400">TreeExplainer</span>
+                </div>
+                <div class="flex-1 min-h-[220px]">
+                    <canvas id="shap-bar-chart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Decision Support & Alerts Table (Directly Matching Slide 2 Alert Table) -->
+        <section class="glass-panel p-4 contain-layout">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-3 pb-2 border-b border-slate-800">
+                <div class="flex items-center space-x-3">
+                    <i data-lucide="bell" class="w-5 h-5 text-rose-400"></i>
+                    <h2 class="text-sm font-semibold text-white">Live Decision Support & Operational Warning Alerts</h2>
+                </div>
+
+                <!-- Alert Summary Counters (Matching Slide 2) -->
+                <div class="flex items-center space-x-2 text-xs">
+                    <div class="px-2.5 py-1 rounded bg-red-950/70 border border-red-500/40 text-red-200">
+                        <strong id="count-high-alerts" class="text-red-400 font-bold">2</strong> High Alerts
+                    </div>
+                    <div class="px-2.5 py-1 rounded bg-amber-950/70 border border-amber-500/40 text-amber-200">
+                        <strong id="count-mod-alerts" class="text-amber-400 font-bold">1</strong> Moderate Alerts
+                    </div>
+                    <div class="px-2.5 py-1 rounded bg-blue-950/70 border border-blue-500/40 text-blue-200">
+                        <strong id="count-low-alerts" class="text-blue-400 font-bold">1</strong> Low Alerts
+                    </div>
+                    <div class="px-2.5 py-1 rounded bg-dark-700 border border-slate-600 text-slate-200">
+                        <strong id="count-all-alerts" class="text-white font-bold">4</strong> All Alerts
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alerts Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-700/80 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+                            <th class="py-2.5 px-3">Alert ID</th>
+                            <th class="py-2.5 px-3">Alert Type</th>
+                            <th class="py-2.5 px-3">Severity</th>
+                            <th class="py-2.5 px-3">Warning / Evacuation Advisory</th>
+                            <th class="py-2.5 px-3">Issued On</th>
+                            <th class="py-2.5 px-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alerts-table-body" class="divide-y divide-slate-800 text-slate-300">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer with SIH 2026 Credits -->
+    <footer class="border-t border-slate-800/80 bg-dark-800/60 px-4 py-3 text-xs text-slate-500 text-center">
+        <div class="max-w-[1700px] mx-auto flex flex-wrap justify-between items-center gap-2">
+            <span>SMART INDIA HACKATHON 2026 • Team CYCLONEX • PS ID: SIH26070 (Disaster Management)</span>
+            <span>Data Sources: ISRO MOSDAC (INSAT-3D/3DR) • ECMWF ERA5 • NOAA IBTrACS • IMD RSMC New Delhi</span>
+        </div>
+    </footer>
+
+    <!-- IMD RSMC Advisory Bulletin Modal -->
+    <div id="bulletin-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-dark-800 border border-slate-700 rounded-xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between p-4 border-b border-slate-700">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="file-check" class="w-5 h-5 text-sky-400"></i>
+                    <h3 class="text-sm font-semibold text-white">IMD RSMC Tropical Cyclone Advisory Bulletin</h3>
+                </div>
+                <button id="close-bulletin-modal" class="text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <pre id="bulletin-content" class="mono-font text-xs text-slate-200 bg-dark-900 p-4 rounded-lg border border-slate-700/80 whitespace-pre-wrap leading-relaxed select-text"></pre>
+            </div>
+            <div class="p-3 border-t border-slate-700 flex justify-end space-x-2 bg-dark-900/60">
+                <button id="copy-bulletin-btn" class="px-3 py-1.5 bg-dark-700 hover:bg-dark-600 text-slate-200 text-xs rounded-lg transition flex items-center space-x-1.5">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    <span>Copy Text</span>
+                </button>
+                <button id="download-bulletin-btn" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs rounded-lg font-medium transition flex items-center space-x-1.5">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                    <span>Download Advisory (.txt)</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script (Cache-busting version query) -->
+    <script src="/static/app.js?v=2.0.5"></script>
+</body>
+</html>
