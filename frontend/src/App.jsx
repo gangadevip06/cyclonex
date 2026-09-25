@@ -11,6 +11,11 @@ import WhatIfSimulator from './components/WhatIfSimulator';
 import SatelliteUploadModal from './components/SatelliteUploadModal';
 import apiService from './services/api';
 import { 
+  BUNDLED_SCENARIOS_LIST, 
+  BUNDLED_HISTORICAL_CYCLONES, 
+  DEFAULT_SYSTEM_STATUS 
+} from './services/benchmarkData';
+import { 
   AlertOctagon, 
   Radio, 
   RefreshCw, 
@@ -26,16 +31,16 @@ export default function App() {
   const [basin, setBasin] = useState('bay_of_bengal');
   const [isLiveMode, setIsLiveMode] = useState(true);
   const [currentMode, setCurrentMode] = useState('live'); // 'live' | 'benchmark' | 'replay'
-  const [scenarios, setScenarios] = useState([]);
+  const [scenarios, setScenarios] = useState(BUNDLED_SCENARIOS_LIST);
   const [selectedScenarioId, setSelectedScenarioId] = useState('precursor_2026');
   
   // Historical Replay state (Requirement 7)
-  const [historicalCyclones, setHistoricalCyclones] = useState([]);
+  const [historicalCyclones, setHistoricalCyclones] = useState(BUNDLED_HISTORICAL_CYCLONES);
   const [selectedHistoricalCyclone, setSelectedHistoricalCyclone] = useState('HUDHUD');
   const [historicalTrackData, setHistoricalTrackData] = useState(null);
 
   // System ground-truth data & model status (Requirement 8, 9)
-  const [systemStatus, setSystemStatus] = useState(null);
+  const [systemStatus, setSystemStatus] = useState(DEFAULT_SYSTEM_STATUS);
 
   const [forecast, setForecast] = useState(null);
   const [loading, setLoading] = useState(true);
