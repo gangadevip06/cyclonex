@@ -126,15 +126,24 @@ export default function App() {
         setLastUpdated(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' IST');
       } else {
         const scData = await apiService.getScenario(scenarioId);
+        
+        // Synchronize basin state with benchmark scenario
+        const scBasin = scData.basin || scData.metadata?.basin;
+        if (scBasin === 'Arabian Sea' || scBasin === 'arabian_sea') {
+          setBasin('arabian_sea');
+        } else if (scBasin === 'Bay of Bengal' || scBasin === 'bay_of_bengal') {
+          setBasin('bay_of_bengal');
+        }
+
         const normalized = {
-          basin: scData.basin || targetBasin,
-          basin_name: scData.title || 'Benchmark Scenario',
+          basin: scData.basin || scData.metadata?.basin || targetBasin,
+          basin_name: scData.title || scData.metadata?.title || 'Benchmark Scenario',
           current_position: {
             lat: scData.current_position?.lat ?? scData.current_lat ?? 14.5,
             lon: scData.current_position?.lon ?? scData.current_lon ?? 86.0
           },
           current_telemetry: {
-            basin: scData.basin || targetBasin,
+            basin: scData.basin || scData.metadata?.basin || targetBasin,
             latitude: scData.current_position?.lat ?? scData.current_lat ?? 14.5,
             longitude: scData.current_position?.lon ?? scData.current_lon ?? 86.0,
             sst: scData.atmospherics?.sst ?? scData.telemetry?.sst ?? 30.2,
@@ -174,15 +183,16 @@ export default function App() {
           },
           shap_contributors: scData.shap_attributions?.map(s => ({
             feature: s.feature,
-            feature_name: s.feature.toUpperCase(),
+            feature_name: (s.feature || '').toUpperCase(),
             value: s.value,
             impact: s.shap_value,
-            direction: s.shap_value >= 0 ? 'amplifying' : 'inhibiting',
+            direction: (s.shap_value || 0) >= 0 ? 'amplifying' : 'inhibiting',
             unit: s.unit || '',
             description: s.description || ''
           })) || scData.shap_contributors || [],
           forecast_120h: normalizeForecastPoints(scData.forecast_120h || scData.forecast_points || []),
           landfall: scData.landfall || { occurred: false },
+          past_track: scData.past_track || [],
           physics_governance: { mpi_knots: 135.0, status: 'Emanuel Thermodynamic Limit' },
           initial_advisories: scData.initial_advisories || {
             cyclone_stage: scData.intensity_category || 'Depression',
@@ -369,6 +379,38 @@ export default function App() {
             <span className="text-[11px] text-purple-300 font-mono">
               Ground-Truth Reference
             </span>
+          </div>
+        )}
+
+        {/* Benchmark Evaluation Mode Notification Banner */}
+        {currentMode === 'benchmark' && (
+          <div className="bg-purple-950/40 border border-purple-500/50 text-purple-200 px-4 py-2.5 rounded-lg text-xs flex flex-wrap items-center justify-between gap-3 shadow-lg shadow-purple-950/50">
+            <div className="flex items-center gap-2 flex-wrap">
+              <ShieldAlert className="h-4 w-4 text-purple-400 shrink-0" />
+              <span>
+                <strong className="text-purple-300 uppercase tracking-wide">BENCHMARK EVALUATION MODE:</strong> Select a verified cyclone scenario to evaluate AI predictions:
+              </span>
+            </div>
+            
+            {/* Quick Scenario Selector Buttons */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {scenarios.map((sc) => (
+                <button
+                  key={sc.id}
+                  onClick={() => handleScenarioChange(sc.id)}
+                  className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all border ${
+                    selectedScenarioId === sc.id
+                      ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/40 font-bold'
+                      : 'bg-slate-900/90 text-slate-300 border-slate-700/80 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  {sc.id === 'precursor_2026' ? 'Precursor 2026' :
+                   sc.id === 'remal_2024' ? 'Remal 2024' :
+                   sc.id === 'biparjoy_2023' ? 'Biparjoy 2023' :
+                   sc.id === 'michaung_2023' ? 'Michaung 2023' : sc.title}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
