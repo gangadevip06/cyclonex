@@ -83,6 +83,34 @@ export const apiService = {
     });
     return res.data;
   },
+
+  // 9. Ground-truth Data & Model Status
+  async getSystemStatus() {
+    try {
+      const res = await client.get('/system-status');
+      return res.data;
+    } catch (err) {
+      console.warn('System status API fallback:', err);
+      return null;
+    }
+  },
+
+  // 10. List Verified Historical Cyclones from IBTrACS
+  async getHistoricalCyclones() {
+    try {
+      const res = await client.get('/historical-cyclones');
+      return res.data?.cyclones || [];
+    } catch (err) {
+      console.warn('Historical cyclones fetch fallback:', err);
+      return [];
+    }
+  },
+
+  // 11. Fetch Historical Cyclone Ground-truth Track
+  async getHistoricalCyclone(stormName) {
+    const res = await client.get(`/historical-cyclone/${encodeURIComponent(stormName)}`);
+    return res.data;
+  },
 };
 
 export default apiService;

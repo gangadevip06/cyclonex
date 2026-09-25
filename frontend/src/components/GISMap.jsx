@@ -17,7 +17,9 @@ export default function GISMap({
   basin,
   intensityCategory,
   currentWindKt,
-  centralPressure
+  centralPressure,
+  historicalTrack = [],
+  isHistoricalMode = false
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -27,7 +29,9 @@ export default function GISMap({
     conePolygon: null,
     forecastMarkers: [],
     landfallMarker: null,
-    windRadiiCircles: []
+    windRadiiCircles: [],
+    historicalPolyline: null,
+    historicalMarkers: []
   });
 
   const [showCone, setShowCone] = useState(true);
@@ -98,9 +102,17 @@ export default function GISMap({
     layers.forecastMarkers = [];
     layers.windRadiiCircles.forEach(c => map.removeLayer(c));
     layers.windRadiiCircles = [];
+    if (layers.historicalPolyline) map.removeLayer(layers.historicalPolyline);
+    layers.historicalMarkers.forEach(m => map.removeLayer(m));
+    layers.historicalMarkers = [];
 
     const curLat = currentPosition?.lat ?? 12.5;
     const curLon = currentPosition?.lon ?? 86.0;
+    const curLatStr = (curLat !== undefined && curLat !== null) ? `${Number(curLat).toFixed(2)}°N` : 'N/A';
+    const curLonStr = (curLon !== undefined && curLon !== null) ? `${Number(curLon).toFixed(2)}°E` : 'N/A';
+    const stageStr = intensityCategory || 'Depression (D)';
+    const windStr = (currentWindKt !== undefined && currentWindKt !== null) ? `${currentWindKt} kt` : 'N/A';
+    const pressStr = (centralPressure !== undefined && centralPressure !== null) ? `${centralPressure} hPa` : 'N/A';
 
     // B. Add Pulsing Active Storm Marker
     const stormIcon = L.divIcon({
@@ -121,9 +133,9 @@ export default function GISMap({
     layers.stormMarker.bindPopup(`
       <div style="font-family: inherit; padding: 4px;">
         <div style="font-weight: 700; color: #38bdf8; font-size: 13px; margin-bottom: 4px;">CURRENT STORM POSITION</div>
-        <div style="font-size: 11px; color: #94a3b8;">Coords: <span style="color: white; font-family: monospace;">${curLat.toFixed(2)}°N, ${curLon.toFixed(2)}°E</span></div>
-        <div style="font-size: 11px; color: #94a3b8;">Stage: <span style="color: #facc15; font-weight: 600;">${intensityCategory || 'Depression'}</span></div>
-        <div style="font-size: 11px; color: #94a3b8;">Winds: <span style="color: #38bdf8; font-weight: 700;">${currentWindKt || 35} kt</span> | MSLP: <span style="color: white;">${centralPressure || 1005} hPa</span></div>
+        <div style="font-size: 11px; color: #94a3b8;">Coords: <span style="color: white; font-family: monospace;">${curLatStr}, ${curLonStr}</span></div>
+        <div style="font-size: 11px; color: #94a3b8;">Stage: <span style="color: #facc15; font-weight: 600;">${stageStr}</span></div>
+        <div style="font-size: 11px; color: #94a3b8;">Winds: <span style="color: #38bdf8; font-weight: 700;">${windStr}</span> | MSLP: <span style="color: white;">${pressStr}</span></div>
       </div>
     `);
 
@@ -206,36 +218,57 @@ export default function GISMap({
       // Waypoint Markers
       if (showForecastPts) {
         forecastPoints.forEach((pt, idx) => {
-          // Color code by intensity
+          const windVal = pt.wind_kt ?? pt.max_wind_kt ?? 35;
           let markerColor = '#38bdf8'; // Depression
-          if (pt.wind_kt >= 64) markerColor = '#ef4444'; // VSCS / ESCS
-          else if (pt.wind_kt >= 48) markerColor = '#f97316'; // SCS
-          else if (pt.wind_kt >= 34) markerColor = '#facc15'; // CS
+          if (windVal >= 64) markerColor = '#ef4444'; // VSCS / ESCS
+          else if (windVal >= 48) markerColor = '#f97316'; // SCS
+          else if (windVal >= 34) markerColor = '#facc15'; // CS
+
+          const hours = pt.hours_ahead ?? pt.horizon_hours ?? pt.step_hours;
+          const hoursBadge = (hours !== undefined && hours !== null) ? `${hours}h` : 'FC';
+          const hoursLabel = (hours !== undefined && hours !== null) ? `+${hours}h` : 'N/A';
+          const catCode = pt.category_code ?? pt.code ?? pt.category ?? 'N/A';
+          const validTime = pt.valid_time ?? pt.time ?? (hours !== undefined ? `+${hours}h` : 'N/A');
+          const latVal = pt.lat;
+          const lonVal = pt.lon;
+          const latStr = (latVal !== undefined && latVal !== null) ? `${Number(latVal).toFixed(2)}°N` : 'N/A';
+          const lonStr = (lonVal !== undefined && lonVal !== null) ? `${Number(lonVal).toFixed(2)}°E` : 'N/A';
+          const windKt = pt.wind_kt ?? pt.max_wind_kt;
+          const windKmh = pt.wind_kmh ?? pt.max_wind_kmh ?? (windKt !== undefined && windKt !== null ? Math.round(windKt * 1.852) : null);
+          const windStr = (windKt !== undefined && windKt !== null)
+            ? `${windKt} kt${windKmh !== null ? ` (${windKmh} km/h)` : ''}`
+            : 'N/A';
+          const press = pt.pressure_hpa ?? pt.central_pressure_hpa ?? pt.pressure;
+          const pressStr = (press !== undefined && press !== null) ? `${press} hPa` : 'N/A';
+          const coneRad = pt.cone_radius_km ?? pt.cone_radius;
+          const coneStr = (coneRad !== undefined && coneRad !== null) ? `±${Math.round(coneRad)} km` : 'N/A';
 
           const htmlMarker = L.divIcon({
             className: 'custom-forecast-marker',
             html: `
-              <div style="background: ${markerColor}; width: 22px; height: 22px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 8px rgba(0,0,0,0.8); font-size: 9px; font-weight: 800;">
-                ${pt.hours_ahead}h
+              <div style="background: ${markerColor}; width: 22px; height: 22px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 8px rgba(0,0,0,0.8); font-size: 9px; font-weight: 800; color: white;">
+                ${hoursBadge}
               </div>
             `,
             iconSize: [22, 22],
             iconAnchor: [11, 11],
           });
 
-          const m = L.marker([pt.lat, pt.lon], { icon: htmlMarker }).addTo(map);
-          m.bindPopup(`
-            <div style="font-family: inherit; padding: 4px;">
-              <div style="font-weight: 700; color: ${markerColor}; font-size: 12px; margin-bottom: 3px;">+${pt.hours_ahead}h FORECAST (${pt.category_code || 'FC'})</div>
-              <div style="font-size: 11px; color: #cbd5e1;">Time: <span style="font-weight: 600;">${pt.valid_time || ''}</span></div>
-              <div style="font-size: 11px; color: #cbd5e1;">Coords: <span style="font-family: monospace;">${pt.lat.toFixed(2)}°N, ${pt.lon.toFixed(2)}°E</span></div>
-              <div style="font-size: 11px; color: #cbd5e1;">Wind: <span style="color: ${markerColor}; font-weight: 700;">${pt.wind_kt} kt (${Math.round(pt.wind_kmh || pt.wind_kt * 1.852)} km/h)</span></div>
-              <div style="font-size: 11px; color: #cbd5e1;">Pressure: <span style="color: white;">${pt.pressure_hpa} hPa</span></div>
-              <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">Cone Radius: ±${Math.round(pt.cone_radius_km || 45)} km</div>
-            </div>
-          `);
-
-          layers.forecastMarkers.push(m);
+          if (latVal !== undefined && lonVal !== undefined) {
+            const m = L.marker([latVal, lonVal], { icon: htmlMarker }).addTo(map);
+            m.bindPopup(`
+              <div style="font-family: inherit; padding: 4px;">
+                <div style="font-size: 10px; color: #38bdf8; font-weight: 700; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.05em;">Possible Future Path</div>
+                <div style="font-weight: 700; color: ${markerColor}; font-size: 12px; margin-bottom: 3px;">${hoursLabel} FORECAST (${catCode})</div>
+                <div style="font-size: 11px; color: #cbd5e1;">Time: <span style="font-weight: 600;">${validTime}</span></div>
+                <div style="font-size: 11px; color: #cbd5e1;">Coords: <span style="font-family: monospace;">${latStr}, ${lonStr}</span></div>
+                <div style="font-size: 11px; color: #cbd5e1;">Wind: <span style="color: ${markerColor}; font-weight: 700;">${windStr}</span></div>
+                <div style="font-size: 11px; color: #cbd5e1;">Pressure: <span style="color: white;">${pressStr}</span></div>
+                <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">Cone Radius: ${coneStr}</div>
+              </div>
+            `);
+            layers.forecastMarkers.push(m);
+          }
         });
       }
     }
@@ -244,12 +277,15 @@ export default function GISMap({
     if (landfall && landfall.occurred && landfall.landfall_district) {
       const landLat = landfall.landfall_lat || 21.6;
       const landLon = landfall.landfall_lon || 88.5;
+      const landDistrict = landfall.landfall_district || 'N/A';
+      const landEta = landfall.predicted_step_hours ? `+${landfall.predicted_step_hours} Hours` : 'N/A';
+      const landDecay = landfall.decay_rate ? `${landfall.decay_rate.toFixed(2)} hr⁻¹` : 'N/A';
 
       const landfallIcon = L.divIcon({
         className: 'landfall-marker',
         html: `
           <div style="background: rgba(239, 68, 68, 0.9); border: 2px solid white; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; white-space: nowrap; box-shadow: 0 0 10px #ef4444; display: flex; align-items: center; gap: 4px;">
-            <span>⚠️ LANDFALL: ${landfall.landfall_district}</span>
+            <span>⚠️ LANDFALL: ${landDistrict}</span>
           </div>
         `,
         iconSize: [120, 24],
@@ -260,16 +296,65 @@ export default function GISMap({
       layers.landfallMarker.bindPopup(`
         <div style="font-family: inherit; padding: 4px;">
           <div style="font-weight: 800; color: #ef4444; font-size: 13px;">CRITICAL LANDFALL PROJECTION</div>
-          <div style="font-size: 11px; color: white; margin-top: 3px;">District: <strong>${landfall.landfall_district}</strong></div>
-          <div style="font-size: 11px; color: #fca5a5;">ETA: Step +${landfall.predicted_step_hours || 48} Hours</div>
-          <div style="font-size: 11px; color: #cbd5e1;">Kaplan Inland Decay: <strong>${(landfall.decay_rate || 0.08).toFixed(2)} hr⁻¹</strong></div>
+          <div style="font-size: 11px; color: white; margin-top: 3px;">District: <strong>${landDistrict}</strong></div>
+          <div style="font-size: 11px; color: #fca5a5;">ETA: Step ${landEta}</div>
+          <div style="font-size: 11px; color: #cbd5e1;">Kaplan Inland Decay: <strong>${landDecay}</strong></div>
         </div>
       `);
     }
 
-    // Center map smoothly
-    map.panTo([curLat, curLon]);
-  }, [currentPosition, forecastPoints, landfall, showCone, showForecastPts, showWindRadii, intensityCategory]);
+    // F. Historical Cyclone Replay Track (NOAA IBTrACS)
+    if (isHistoricalMode && historicalTrack && historicalTrack.length > 0) {
+      const histCoords = historicalTrack
+        .filter(pt => pt.lat !== undefined && pt.lon !== undefined)
+        .map(pt => [pt.lat, pt.lon]);
+
+      if (histCoords.length > 1) {
+        layers.historicalPolyline = L.polyline(histCoords, {
+          color: '#a855f7',
+          weight: 3.5,
+          opacity: 0.9,
+          dashArray: '6, 6'
+        }).addTo(map);
+      }
+
+      const stepInterval = Math.max(1, Math.floor(historicalTrack.length / 10));
+      historicalTrack.forEach((pt, i) => {
+        if (i % stepInterval === 0 || i === historicalTrack.length - 1) {
+          const histIcon = L.divIcon({
+            className: 'hist-marker',
+            html: `
+              <div style="background: #9333ea; width: 18px; height: 18px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 6px #a855f7; font-size: 8px; font-weight: 800; color: white;">
+                ${i + 1}
+              </div>
+            `,
+            iconSize: [18, 18],
+            iconAnchor: [9, 9],
+          });
+
+          const hm = L.marker([pt.lat, pt.lon], { icon: histIcon }).addTo(map);
+          hm.bindPopup(`
+            <div style="font-family: inherit; padding: 4px;">
+              <div style="font-size: 10px; color: #c084fc; font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Historical Replay (IBTrACS Ground-Truth)</div>
+              <div style="font-weight: 700; color: white; font-size: 12px; margin-bottom: 3px;">Observation #${i + 1} (${pt.stage || pt.category || 'N/A'})</div>
+              <div style="font-size: 11px; color: #cbd5e1;">Time (UTC): <span style="font-weight: 600;">${pt.iso_time || pt.time || 'N/A'}</span></div>
+              <div style="font-size: 11px; color: #cbd5e1;">Coords: <span style="font-family: monospace;">${pt.lat.toFixed(2)}°N, ${pt.lon.toFixed(2)}°E</span></div>
+              <div style="font-size: 11px; color: #cbd5e1;">WMO Wind: <span style="color: #c084fc; font-weight: 700;">${pt.wind_kt !== undefined ? `${pt.wind_kt} kt` : 'N/A'}</span></div>
+              <div style="font-size: 11px; color: #cbd5e1;">Central Pressure: <span style="color: white;">${pt.pressure_hpa !== undefined ? `${pt.pressure_hpa} hPa` : 'N/A'}</span></div>
+            </div>
+          `);
+          layers.historicalMarkers.push(hm);
+        }
+      });
+
+      if (histCoords.length > 0) {
+        map.fitBounds(L.latLngBounds(histCoords), { padding: [40, 40], maxZoom: 7 });
+      }
+    } else {
+      // Center map smoothly
+      map.panTo([curLat, curLon]);
+    }
+  }, [currentPosition, forecastPoints, landfall, showCone, showForecastPts, showWindRadii, intensityCategory, historicalTrack, isHistoricalMode]);
 
   // Recenter button
   const handleRecenter = () => {
@@ -291,6 +376,9 @@ export default function GISMap({
           </h2>
           <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono">
             120-Hour Track & Cone
+          </span>
+          <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 font-medium">
+            Possible Future Path
           </span>
         </div>
 

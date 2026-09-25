@@ -1,4 +1,3 @@
-import React from 'react';
 import { 
   Compass, 
   RefreshCw, 
@@ -10,7 +9,8 @@ import {
   ShieldAlert, 
   Radio, 
   CheckCircle2, 
-  AlertTriangle 
+  AlertTriangle,
+  History
 } from 'lucide-react';
 
 export default function Navbar({
@@ -21,6 +21,11 @@ export default function Navbar({
   onScenarioChange,
   isLiveMode,
   onToggleLiveMode,
+  currentMode,
+  onModeChange,
+  historicalCyclones = [],
+  selectedHistoricalCyclone,
+  onHistoricalCycloneChange,
   onRefresh,
   loading,
   onOpenWhatIf,
@@ -31,6 +36,7 @@ export default function Navbar({
   lastUpdated,
   activeAlertLevel
 }) {
+  const activeMode = currentMode || (isLiveMode ? 'live' : 'benchmark');
   return (
     <header className="border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur sticky top-0 z-50 px-4 py-2.5">
       <div className="max-w-[1750px] mx-auto flex flex-wrap items-center justify-between gap-4">
@@ -70,23 +76,23 @@ export default function Navbar({
         {/* Central Operations Ticker / Basin & Scenario Selectors */}
         <div className="flex items-center gap-2.5 flex-wrap">
           
-          {/* Mode Switch: Live Real-Time vs Benchmark Scenarios */}
+          {/* Mode Switch: Live Real-Time vs Benchmark Scenarios vs Historical Replay */}
           <div className="flex items-center bg-slate-900/90 p-1 rounded-lg border border-slate-700">
             <button
-              onClick={() => onToggleLiveMode(true)}
-              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded transition-all ${
-                isLiveMode 
+              onClick={() => onModeChange ? onModeChange('live') : onToggleLiveMode(true)}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded transition-all ${
+                activeMode === 'live' 
                   ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30' 
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Radio className={`h-3.5 w-3.5 ${isLiveMode ? 'animate-pulse text-white' : 'text-slate-400'}`} />
+              <Radio className={`h-3.5 w-3.5 ${activeMode === 'live' ? 'animate-pulse text-white' : 'text-slate-400'}`} />
               Live Telemetry
             </button>
             <button
-              onClick={() => onToggleLiveMode(false)}
-              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded transition-all ${
-                !isLiveMode 
+              onClick={() => onModeChange ? onModeChange('benchmark') : onToggleLiveMode(false)}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded transition-all ${
+                activeMode === 'benchmark' 
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30' 
                   : 'text-slate-400 hover:text-slate-200'
               }`}
@@ -94,10 +100,21 @@ export default function Navbar({
               <ShieldAlert className="h-3.5 w-3.5" />
               Benchmarks
             </button>
+            <button
+              onClick={() => onModeChange ? onModeChange('replay') : null}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded transition-all ${
+                activeMode === 'replay' 
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30' 
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <History className="h-3.5 w-3.5" />
+              Historical Replay
+            </button>
           </div>
 
-          {/* Basin Selector (in Live Mode) */}
-          {isLiveMode ? (
+          {/* Context Selectors according to active mode */}
+          {activeMode === 'live' && (
             <div className="flex items-center bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700/80 text-xs">
               <span className="text-slate-400 mr-2 font-medium">Basin:</span>
               <select
@@ -109,8 +126,9 @@ export default function Navbar({
                 <option value="arabian_sea" className="bg-slate-900 text-slate-100">Arabian Sea (AS)</option>
               </select>
             </div>
-          ) : (
-            /* Historical Scenarios Dropdown */
+          )}
+
+          {activeMode === 'benchmark' && (
             <div className="flex items-center bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700/80 text-xs">
               <span className="text-slate-400 mr-2 font-medium">Event:</span>
               <select
@@ -123,6 +141,27 @@ export default function Navbar({
                     {sc.title}
                   </option>
                 ))}
+              </select>
+            </div>
+          )}
+
+          {activeMode === 'replay' && (
+            <div className="flex items-center bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700/80 text-xs">
+              <span className="text-slate-400 mr-2 font-medium">IBTrACS Storm:</span>
+              <select
+                value={selectedHistoricalCyclone}
+                onChange={(e) => onHistoricalCycloneChange && onHistoricalCycloneChange(e.target.value)}
+                className="bg-transparent text-amber-300 font-semibold focus:outline-none cursor-pointer max-w-[220px] truncate"
+              >
+                {historicalCyclones.length === 0 ? (
+                  <option value="">Loading NOAA IBTrACS...</option>
+                ) : (
+                  historicalCyclones.map((cyc) => (
+                    <option key={`${cyc.name}-${cyc.season}`} value={cyc.name} className="bg-slate-900 text-slate-100">
+                      {cyc.name} ({cyc.season} - {cyc.basin})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
           )}

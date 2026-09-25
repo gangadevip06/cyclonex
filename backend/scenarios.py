@@ -570,6 +570,22 @@ def get_scenario_data(scenario_id: str):
         landfall_lon=lf.get("lon", 87.2)
     )
 
+    # Dual-schema normalization to ensure no undefined values in frontend GIS maps or charts
+    now_ref = datetime.now()
+    normalized_forecast_points = []
+    for i, pt in enumerate(forecast_points):
+        step_hours = pt.get("horizon_hours", 24 * (i + 1))
+        norm_pt = dict(pt)
+        norm_pt["step"] = i + 1
+        norm_pt["hours_ahead"] = step_hours
+        norm_pt["valid_time"] = (now_ref + timedelta(hours=step_hours)).strftime("%d %b %H:00 IST")
+        norm_pt["wind_kt"] = pt.get("max_wind_kt", 35.0)
+        norm_pt["wind_kmh"] = pt.get("max_wind_kmh", round(float(norm_pt["wind_kt"]) * 1.852, 1))
+        norm_pt["pressure_hpa"] = pt.get("central_pressure_hpa", 1004.0)
+        norm_pt["category_code"] = pt.get("code", "D")
+        normalized_forecast_points.append(norm_pt)
+    forecast_points = normalized_forecast_points
+
     return {
         "metadata": {
             "id": scenario["id"],

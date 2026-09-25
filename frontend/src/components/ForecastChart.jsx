@@ -28,18 +28,28 @@ export default function ForecastChart({
   }
 
   // Format chart data points
-  const chartData = forecastPoints.map((pt) => ({
-    name: `+${pt.hours_ahead}h`,
-    validTime: pt.valid_time,
-    windKt: pt.wind_kt,
-    windKmh: Math.round(pt.wind_kmh || pt.wind_kt * 1.852),
-    pressureHpa: pt.pressure_hpa,
-    category: pt.category || pt.category_code,
-  }));
+  const chartData = forecastPoints.map((pt) => {
+    const hours = pt.hours_ahead ?? pt.horizon_hours ?? pt.step_hours;
+    const hoursLabel = (hours !== undefined && hours !== null) ? `+${hours}h` : 'N/A';
+    const windKt = pt.wind_kt ?? pt.max_wind_kt ?? 35;
+    const windKmh = pt.wind_kmh ?? pt.max_wind_kmh ?? Math.round(windKt * 1.852);
+    const pressureHpa = pt.pressure_hpa ?? pt.central_pressure_hpa ?? 1004;
+    const category = pt.category || pt.category_code || pt.code || 'N/A';
+    const validTime = pt.valid_time || (hours !== undefined ? `+${hours}h` : 'N/A');
+
+    return {
+      name: hoursLabel,
+      validTime,
+      windKt,
+      windKmh,
+      pressureHpa,
+      category,
+    };
+  });
 
   // Determine peak
-  const maxWind = Math.max(...forecastPoints.map(p => p.wind_kt), 35);
-  const minPressure = Math.min(...forecastPoints.map(p => p.pressure_hpa), 1000);
+  const maxWind = Math.max(...forecastPoints.map(p => (p.wind_kt ?? p.max_wind_kt ?? 35)), 35);
+  const minPressure = Math.min(...forecastPoints.map(p => (p.pressure_hpa ?? p.central_pressure_hpa ?? 1004)), 1000);
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
