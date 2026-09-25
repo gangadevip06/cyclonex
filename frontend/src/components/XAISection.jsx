@@ -9,6 +9,10 @@ import {
   Crosshair, 
   Cpu 
 } from 'lucide-react';
+import { BUNDLED_SCENARIO_DATA } from '../services/benchmarkData';
+
+const DEFAULT_SAT_FRAME = BUNDLED_SCENARIO_DATA?.['precursor_2026']?.satellite_channels?.tir1 || BUNDLED_SCENARIO_DATA?.['precursor_2026']?.satellite_ir_b64 || '';
+const DEFAULT_GRADCAM_FRAME = BUNDLED_SCENARIO_DATA?.['precursor_2026']?.satellite_channels?.gradcam || BUNDLED_SCENARIO_DATA?.['precursor_2026']?.gradcam_b64 || '';
 
 export default function XAISection({
   satelliteFrame,
@@ -21,6 +25,9 @@ export default function XAISection({
   const [opacity, setOpacity] = useState(0.70);
   const [blendMode, setBlendMode] = useState('screen');
   const [viewMode, setViewMode] = useState('blended'); // 'blended' | 'gradcam' | 'satellite'
+
+  const activeSat = satelliteFrame || DEFAULT_SAT_FRAME;
+  const activeGradcam = gradcamFrame || DEFAULT_GRADCAM_FRAME;
 
   // Satellite Metrics fallbacks
   const sm = satelliteMetrics || {
@@ -94,9 +101,9 @@ export default function XAISection({
         <div className="relative aspect-video sm:aspect-square max-h-[380px] w-full bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center group">
           
           {/* Base Layer: Raw Satellite Thermal IR */}
-          {satelliteFrame ? (
+          {activeSat ? (
             <img
-              src={satelliteFrame}
+              src={activeSat}
               alt="INSAT-3D Thermal IR Satellite"
               className={`w-full h-full object-cover transition-opacity duration-300 ${
                 viewMode === 'gradcam' ? 'opacity-0' : 'opacity-100'
@@ -107,9 +114,9 @@ export default function XAISection({
           )}
 
           {/* Overlay Layer: Grad-CAM Neural Attention Heatmap */}
-          {gradcamFrame && viewMode !== 'satellite' && (
+          {activeGradcam && viewMode !== 'satellite' && (
             <img
-              src={gradcamFrame}
+              src={activeGradcam}
               alt="PyTorch Grad-CAM Attention Heatmap"
               className="absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-300"
               style={{

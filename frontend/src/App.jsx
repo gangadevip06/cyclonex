@@ -118,11 +118,15 @@ export default function App() {
     try {
       if (live) {
         const data = await apiService.getForecast(targetBasin);
-        // Normalize points
-        if (data && data.forecast_120h) {
-          data.forecast_120h = normalizeForecastPoints(data.forecast_120h);
-        }
-        setForecast(data);
+        const satFrame = data.satellite_frame || data.satellite_ir_b64 || data.satellite_channels?.tir1 || '';
+        const gradcamFrame = data.gradcam_frame || data.gradcam_b64 || data.satellite_channels?.gradcam || '';
+        const normalizedLive = {
+          ...data,
+          satellite_frame: satFrame,
+          gradcam_frame: gradcamFrame,
+          forecast_120h: normalizeForecastPoints(data.forecast_120h || []),
+        };
+        setForecast(normalizedLive);
         setLastUpdated(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' IST');
       } else {
         const scData = await apiService.getScenario(scenarioId);

@@ -11102,3 +11102,7 @@ export const DEFAULT_SYSTEM_STATUS = {
     }
   }
 };
+
+export const DEFAULT_SATELLITE_FRAME = BUNDLED_SCENARIO_DATA["precursor_2026"].satellite_channels.tir1;
+export const DEFAULT_GRADCAM_FRAME = BUNDLED_SCENARIO_DATA["precursor_2026"].satellite_channels.gradcam;
+
